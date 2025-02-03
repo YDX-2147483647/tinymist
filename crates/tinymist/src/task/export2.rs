@@ -22,6 +22,16 @@ use crate::project::{
 use crate::tool::text::FullTextDigest;
 use crate::world::base::{WorldComputable, WorldComputeGraph};
 
+pub trait ExportComputation<F: CompilerFeat, D> {
+    type Output;
+    type Config: Send + Sync + 'static;
+
+    fn needs_run(graph: &Arc<WorldComputeGraph<F>>, doc: Option<&D>, config: &Self::Config)
+        -> bool;
+
+    fn run(doc: &Arc<D>, config: &Self::Config) -> Result<Self::Output>;
+}
+
 pub struct TaskConfig<T>(T);
 
 impl<F: CompilerFeat, T: Send + Sync + 'static> WorldComputable<F> for TaskConfig<T> {
@@ -70,11 +80,11 @@ where
 
 pub struct OptionDocument<D>(Option<Arc<D>>);
 
-impl<D> WorldComputable<LspCompilerFeat> for OptionDocument<D>
+impl<F: CompilerFeat, D> WorldComputable<F> for OptionDocument<D>
 where
     D: typst::Document + Send + Sync + 'static,
 {
-    fn compute(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<Self> {
+    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
         let doc = graph.compute::<Compilation<D>>()?;
         let compiled = doc.0.as_ref().and_then(|warned| warned.output.clone().ok());
 
@@ -82,26 +92,13 @@ where
     }
 }
 
-pub trait ExportComputation<D> {
-    type Output;
-    type Config: Send + Sync + 'static;
-
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
-        doc: Option<&D>,
-        config: &Self::Config,
-    ) -> bool;
-
-    fn run(doc: &Arc<D>, config: &Self::Config) -> Result<Self::Output>;
-}
-
 impl<D> OptionDocument<D>
 where
     D: typst::Document + Send + Sync + 'static,
 {
-    fn needs_run<C: Send + Sync + 'static>(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
-        f: impl FnOnce(&Arc<WorldComputeGraph<LspCompilerFeat>>, Option<&D>, &C) -> bool,
+    fn needs_run<F: CompilerFeat, C: Send + Sync + 'static>(
+        graph: &Arc<WorldComputeGraph<F>>,
+        f: impl FnOnce(&Arc<WorldComputeGraph<F>>, Option<&D>, &C) -> bool,
     ) -> Result<bool> {
         let Some(config) = graph.get::<TaskConfig<C>>().transpose()? else {
             return Ok(false);
@@ -111,8 +108,8 @@ where
         Ok(f(graph, doc.0.as_deref(), &config.0))
     }
 
-    pub fn run_export<T: ExportComputation<D>>(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
+    pub fn run_export<F: CompilerFeat, T: ExportComputation<F, D>>(
+        graph: &Arc<WorldComputeGraph<F>>,
     ) -> Result<Option<T::Output>> {
         if !OptionDocument::needs_run(graph, T::needs_run)? {
             return Ok(None);
@@ -197,25 +194,17 @@ pub struct ErasedExport<T, E> {
 }
 
 #[allow(clippy::type_complexity)]
-struct ErasedExportImpl<T, E> {
-    f: Arc<
-        dyn Fn(&Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<ErasedExport<T, E>>
-            + Send
-            + Sync,
-    >,
-    _phantom: std::marker::PhantomData<(T, E)>,
+struct ErasedExportImpl<F: CompilerFeat, T, E> {
+    f: Arc<dyn Fn(&Arc<WorldComputeGraph<F>>) -> Result<ErasedExport<T, E>> + Send + Sync>,
 }
 
 impl<T: Send + Sync + 'static, E: Send + Sync + 'static> ErasedExport<T, E> {
     #[must_use = "the result must be checked"]
-    pub fn provide_raw(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
-        f: impl Fn(&Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<Option<T>>
-            + Send
-            + Sync
-            + 'static,
+    pub fn provide_raw<F: CompilerFeat>(
+        graph: &Arc<WorldComputeGraph<F>>,
+        f: impl Fn(&Arc<WorldComputeGraph<F>>) -> Result<Option<T>> + Send + Sync + 'static,
     ) -> Result<()> {
-        let provided = graph.provide::<TaskConfig<ErasedExportImpl<T, E>>>(Ok(Arc::new({
+        let provided = graph.provide::<TaskConfig<ErasedExportImpl<F, T, E>>>(Ok(Arc::new({
             TaskConfig(ErasedExportImpl {
                 f: Arc::new(move |graph| {
                     let result = f(graph)?;
@@ -224,7 +213,6 @@ impl<T: Send + Sync + 'static, E: Send + Sync + 'static> ErasedExport<T, E> {
                         _phantom: std::marker::PhantomData,
                     })
                 }),
-                _phantom: std::marker::PhantomData,
             })
         })));
 
@@ -236,20 +224,20 @@ impl<T: Send + Sync + 'static, E: Send + Sync + 'static> ErasedExport<T, E> {
     }
 
     #[must_use = "the result must be checked"]
-    pub fn provide<D, C>(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<()>
+    pub fn provide<F: CompilerFeat, D, C>(graph: &Arc<WorldComputeGraph<F>>) -> Result<()>
     where
         D: typst::Document + Send + Sync + 'static,
-        C: WorldComputable<LspCompilerFeat> + ExportComputation<D, Output = T>,
+        C: WorldComputable<LspCompilerFeat> + ExportComputation<F, D, Output = T>,
     {
-        Self::provide_raw(graph, OptionDocument::run_export::<C>)
+        Self::provide_raw(graph, OptionDocument::run_export::<F, C>)
     }
 }
 
-impl<T: Send + Sync + 'static, E: Send + Sync + 'static> WorldComputable<LspCompilerFeat>
+impl<F: CompilerFeat, T: Send + Sync + 'static, E: Send + Sync + 'static> WorldComputable<F>
     for ErasedExport<T, E>
 {
-    fn compute(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<Self> {
-        let f = graph.must_get::<TaskConfig<ErasedExportImpl<T, E>>>()?;
+    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
+        let f = graph.must_get::<TaskConfig<ErasedExportImpl<F, T, E>>>()?;
         (f.0.f)(graph)
     }
 }
@@ -259,12 +247,22 @@ pub struct ProjectExport;
 impl ProjectExport {
     #[must_use = "the result must be checked"]
     pub fn provide(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<()> {
-        ErasedExport::<_, PdfFlag>::provide::<TypstPagedDocument, PdfExport>(graph)?;
-        ErasedExport::<_, SvgFlag>::provide::<TypstPagedDocument, SvgExport>(graph)?;
-        ErasedExport::<_, PngFlag>::provide::<TypstPagedDocument, PngExport>(graph)?;
-        ErasedExport::<_, HtmlFlag>::provide::<TypstHtmlDocument, HtmlExport>(graph)?;
+        ErasedExport::<_, PdfFlag>::provide::<LspCompilerFeat, TypstPagedDocument, PdfExport>(
+            graph,
+        )?;
+        ErasedExport::<_, SvgFlag>::provide::<LspCompilerFeat, TypstPagedDocument, SvgExport>(
+            graph,
+        )?;
+        ErasedExport::<_, PngFlag>::provide::<LspCompilerFeat, TypstPagedDocument, PngExport>(
+            graph,
+        )?;
+        ErasedExport::<_, HtmlFlag>::provide::<LspCompilerFeat, TypstHtmlDocument, HtmlExport>(
+            graph,
+        )?;
         ErasedExport::<_, MarkdownFlag>::provide_raw(graph, TypliteMarkdownExport::run)?;
-        ErasedExport::<_, TextFlag>::provide::<TypstPagedDocument, TextExport>(graph)?;
+        ErasedExport::<_, TextFlag>::provide::<LspCompilerFeat, TypstPagedDocument, TextExport>(
+            graph,
+        )?;
         Ok(())
     }
 }
@@ -301,19 +299,19 @@ impl ProjectCompilation {
         let html_diag = Some(TaskWhen::Never);
 
         let pdf: Option<TaskWhen> = graph
-            .get::<TaskConfig<<PdfExport as ExportComputation<_>>::Config>>()
+            .get::<TaskConfig<<PdfExport as ExportComputation<LspCompilerFeat, _>>::Config>>()
             .transpose()?
             .map(|config| config.0.export.when);
         let svg: Option<TaskWhen> = graph
-            .get::<TaskConfig<<SvgExport as ExportComputation<_>>::Config>>()
+            .get::<TaskConfig<<SvgExport as ExportComputation<LspCompilerFeat, _>>::Config>>()
             .transpose()?
             .map(|config| config.0.export.when);
         let png: Option<TaskWhen> = graph
-            .get::<TaskConfig<<PngExport as ExportComputation<_>>::Config>>()
+            .get::<TaskConfig<<PngExport as ExportComputation<LspCompilerFeat, _>>::Config>>()
             .transpose()?
             .map(|config| config.0.export.when);
         let html: Option<TaskWhen> = graph
-            .get::<TaskConfig<<HtmlExport as ExportComputation<_>>::Config>>()
+            .get::<TaskConfig<<HtmlExport as ExportComputation<LspCompilerFeat, _>>::Config>>()
             .transpose()?
             .map(|config| config.0.export.when);
         let md: Option<TaskWhen> = graph
@@ -321,7 +319,7 @@ impl ProjectCompilation {
             .transpose()?
             .map(|config| config.0.export.when);
         let text: Option<TaskWhen> = graph
-            .get::<TaskConfig<<TextExport as ExportComputation<_>>::Config>>()
+            .get::<TaskConfig<<TextExport as ExportComputation<LspCompilerFeat, _>>::Config>>()
             .transpose()?
             .map(|config| config.0.export.when);
 
@@ -394,12 +392,12 @@ impl WorldComputable<LspCompilerFeat> for ProjectExport {
 
 pub struct PdfExport(pub Option<SourceResult<Bytes>>);
 
-impl ExportComputation<TypstPagedDocument> for PdfExport {
+impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for PdfExport {
     type Output = SourceResult<Bytes>;
     type Config = ExportPdfTask;
 
     fn needs_run(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
+        graph: &Arc<WorldComputeGraph<F>>,
         doc: Option<&TypstPagedDocument>,
         config: &Self::Config,
     ) -> bool {
@@ -430,20 +428,20 @@ impl ExportComputation<TypstPagedDocument> for PdfExport {
     }
 }
 
-impl WorldComputable<LspCompilerFeat> for PdfExport {
-    fn compute(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<Self> {
-        Ok(Self(OptionDocument::run_export::<Self>(graph)?))
+impl<F: CompilerFeat> WorldComputable<F> for PdfExport {
+    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
+        Ok(Self(OptionDocument::run_export::<F, Self>(graph)?))
     }
 }
 
 pub struct SvgExport(pub Option<SourceResult<String>>);
 
-impl ExportComputation<TypstPagedDocument> for SvgExport {
+impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for SvgExport {
     type Output = SourceResult<String>;
     type Config = ExportSvgTask;
 
     fn needs_run(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
+        graph: &Arc<WorldComputeGraph<F>>,
         doc: Option<&TypstPagedDocument>,
         config: &Self::Config,
     ) -> bool {
@@ -468,20 +466,20 @@ impl ExportComputation<TypstPagedDocument> for SvgExport {
     }
 }
 
-impl WorldComputable<LspCompilerFeat> for SvgExport {
-    fn compute(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<Self> {
-        Ok(Self(OptionDocument::run_export::<Self>(graph)?))
+impl<F: CompilerFeat> WorldComputable<F> for SvgExport {
+    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
+        Ok(Self(OptionDocument::run_export::<F, Self>(graph)?))
     }
 }
 
 pub struct PngExport(pub Option<SourceResult<Bytes>>);
 
-impl ExportComputation<TypstPagedDocument> for PngExport {
+impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for PngExport {
     type Output = SourceResult<Bytes>;
     type Config = ExportPngTask;
 
     fn needs_run(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
+        graph: &Arc<WorldComputeGraph<F>>,
         doc: Option<&TypstPagedDocument>,
         config: &Self::Config,
     ) -> bool {
@@ -522,20 +520,20 @@ impl ExportComputation<TypstPagedDocument> for PngExport {
     }
 }
 
-impl WorldComputable<LspCompilerFeat> for PngExport {
-    fn compute(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<Self> {
-        Ok(Self(OptionDocument::run_export::<Self>(graph)?))
+impl<F: CompilerFeat> WorldComputable<F> for PngExport {
+    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
+        Ok(Self(OptionDocument::run_export::<F, Self>(graph)?))
     }
 }
 
 pub struct HtmlExport(pub Option<SourceResult<String>>);
 
-impl ExportComputation<TypstHtmlDocument> for HtmlExport {
+impl<F: CompilerFeat> ExportComputation<F, TypstHtmlDocument> for HtmlExport {
     type Output = SourceResult<String>;
     type Config = ExportHtmlTask;
 
     fn needs_run(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
+        graph: &Arc<WorldComputeGraph<F>>,
         doc: Option<&TypstHtmlDocument>,
         config: &Self::Config,
     ) -> bool {
@@ -548,9 +546,9 @@ impl ExportComputation<TypstHtmlDocument> for HtmlExport {
     }
 }
 
-impl WorldComputable<LspCompilerFeat> for HtmlExport {
-    fn compute(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<Self> {
-        Ok(Self(OptionDocument::run_export::<Self>(graph)?))
+impl<F: CompilerFeat> WorldComputable<F> for HtmlExport {
+    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
+        Ok(Self(OptionDocument::run_export::<F, Self>(graph)?))
     }
 }
 
@@ -589,12 +587,12 @@ impl WorldComputable<LspCompilerFeat> for TypliteMarkdownExport {
 
 pub struct TextExport(pub Option<SourceResult<String>>);
 
-impl ExportComputation<TypstPagedDocument> for TextExport {
+impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for TextExport {
     type Output = SourceResult<String>;
     type Config = ExportTextTask;
 
     fn needs_run(
-        graph: &Arc<WorldComputeGraph<LspCompilerFeat>>,
+        graph: &Arc<WorldComputeGraph<F>>,
         doc: Option<&TypstPagedDocument>,
         config: &Self::Config,
     ) -> bool {
@@ -613,9 +611,9 @@ impl ExportComputation<TypstPagedDocument> for TextExport {
     }
 }
 
-impl WorldComputable<LspCompilerFeat> for TextExport {
-    fn compute(graph: &Arc<WorldComputeGraph<LspCompilerFeat>>) -> Result<Self> {
-        Ok(Self(OptionDocument::run_export::<Self>(graph)?))
+impl<F: CompilerFeat> WorldComputable<F> for TextExport {
+    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
+        Ok(Self(OptionDocument::run_export::<F, Self>(graph)?))
     }
 }
 
