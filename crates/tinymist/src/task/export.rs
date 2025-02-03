@@ -396,30 +396,6 @@ fn serialize(data: &impl serde::Serialize, format: &str, pretty: bool) -> anyhow
     })
 }
 
-/// Gets legacy page selection
-pub fn get_page_selection(task: &tinymist_project::ExportTask) -> Result<(bool, Abs)> {
-    let is_first = task
-        .transform
-        .iter()
-        .any(|t| matches!(t, ExportTransform::Pages { ranges, .. } if ranges == &[Pages::FIRST]));
-
-    let mut gap_res = Abs::default();
-    if !is_first {
-        for trans in &task.transform {
-            if let ExportTransform::Merge { gap } = trans {
-                let gap = gap
-                    .as_deref()
-                    .map(parse_length)
-                    .transpose()
-                    .context_ut("failed to parse gap")?;
-                gap_res = gap.unwrap_or_default();
-            }
-        }
-    }
-
-    Ok((is_first, gap_res))
-}
-
 fn parse_length(gap: &str) -> anyhow::Result<Abs> {
     let length = typst::syntax::parse_code(gap);
     if length.erroneous() {
