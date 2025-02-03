@@ -3939,6 +3939,7 @@ dependencies = [
  "tinymist-query",
  "tinymist-render",
  "tinymist-std",
+ "tinymist-task",
  "tokio",
  "tokio-util",
  "toml",
@@ -4025,6 +4026,7 @@ dependencies = [
  "serde_json",
  "tinymist-derive",
  "tinymist-std",
+ "tinymist-task",
  "tinymist-world",
  "tokio",
  "toml",
@@ -4134,6 +4136,39 @@ dependencies = [
  "wasm-bindgen",
  "web-time",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "tinymist-task"
+version = "0.12.19-rc4"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "comemo",
+ "dirs",
+ "ecow",
+ "log",
+ "notify",
+ "parking_lot",
+ "pathdiff",
+ "rayon",
+ "rpds",
+ "semver",
+ "serde",
+ "serde_json",
+ "tinymist-derive",
+ "tinymist-std",
+ "tinymist-world",
+ "tokio",
+ "toml",
+ "typst",
+ "typst-assets",
+ "typst-html",
+ "typst-pdf",
+ "typst-preview",
+ "typst-render",
+ "typst-svg",
 ]
 
 [[package]]

@@ -187,6 +187,7 @@ tinymist-vfs = { path = "./crates/tinymist-vfs/", default-features = false }
 tinymist-core = { path = "./crates/tinymist-core/", default-features = false }
 tinymist-world = { path = "./crates/tinymist-world/", default-features = false }
 tinymist-project = { path = "./crates/tinymist-project/" }
+tinymist-task = { path = "./crates/tinymist-task/" }
 tinymist-derive = { path = "./crates/tinymist-derive/" }
 tinymist-analysis = { path = "./crates/tinymist-analysis/" }
 tinymist-query = { path = "./crates/tinymist-query/" }
@@ -296,3 +297,4 @@ tinymist-analysis = { path = "crates/tinymist-analysis" }
 tinymist-std = { path = "crates/tinymist-std" }
 tinymist-world = { path = "crates/tinymist-world" }
 tinymist-project = { path = "crates/tinymist-project" }
+tinymist-task = { path = "crates/tinymist-task" }

@@ -192,7 +192,7 @@ where
     }
 }
 
-pub struct OptionDocumentTask<D>(Option<Arc<D>>);
+pub struct OptionDocumentTask<D>(pub Option<Arc<D>>);
 
 impl<F: CompilerFeat, D> WorldComputable<F> for OptionDocumentTask<D>
 where
