@@ -19,6 +19,8 @@ pub mod package;
 pub mod parser;
 mod snapshot;
 pub use snapshot::*;
+mod compute;
+pub use compute::*;
 
 pub use tinymist_vfs as vfs;
 
