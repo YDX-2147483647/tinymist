@@ -62,15 +62,6 @@ impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for PdfExport {
     type Output = Bytes;
     type Config = ExportPdfTask;
 
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&TypstPagedDocument>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or(true)
-    }
-
     fn run(
         _graph: &Arc<WorldComputeGraph<F>>,
         doc: &Arc<TypstPagedDocument>,
@@ -149,15 +140,6 @@ impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for SvgExport {
     type Output = String;
     type Config = ExportSvgTask;
 
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&TypstPagedDocument>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or(true)
-    }
-
     fn run(
         _graph: &Arc<WorldComputeGraph<F>>,
         doc: &Arc<TypstPagedDocument>,
@@ -192,15 +174,6 @@ pub struct PngExport;
 impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for PngExport {
     type Output = Bytes;
     type Config = ExportPngTask;
-
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&TypstPagedDocument>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or(true)
-    }
 
     fn run(
         _graph: &Arc<WorldComputeGraph<F>>,
@@ -251,15 +224,6 @@ pub struct HtmlExport;
 impl<F: CompilerFeat> ExportComputation<F, TypstHtmlDocument> for HtmlExport {
     type Output = String;
     type Config = ExportHtmlTask;
-
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&TypstHtmlDocument>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or(true)
-    }
 
     fn run(
         _graph: &Arc<WorldComputeGraph<F>>,
@@ -358,15 +322,6 @@ impl DocumentQuery {
 impl<F: CompilerFeat, D: typst::Document> ExportComputation<F, D> for DocumentQuery {
     type Output = SourceResult<String>;
     type Config = QueryTask;
-
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&D>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or(true)
-    }
 
     fn run(
         g: &Arc<WorldComputeGraph<F>>,
@@ -501,4 +456,42 @@ fn convert_datetime(date_time: chrono::DateTime<chrono::Utc>) -> Option<Timestam
     );
 
     Some(Timestamp::new_utc(datetime.unwrap()))
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_parse_color() {
+        assert_eq!(parse_color("black".to_owned()).unwrap(), Color::BLACK);
+        assert_eq!(parse_color("white".to_owned()).unwrap(), Color::WHITE);
+        assert_eq!(parse_color("red".to_owned()).unwrap(), Color::RED);
+        assert_eq!(parse_color("green".to_owned()).unwrap(), Color::GREEN);
+        assert_eq!(parse_color("blue".to_owned()).unwrap(), Color::BLUE);
+        assert_eq!(
+            parse_color("#000000".to_owned()).unwrap().to_hex(),
+            "#000000"
+        );
+        assert_eq!(
+            parse_color("#ffffff".to_owned()).unwrap().to_hex(),
+            "#ffffff"
+        );
+        assert_eq!(
+            parse_color("#000000cc".to_owned()).unwrap().to_hex(),
+            "#000000cc"
+        );
+        assert!(parse_color("invalid".to_owned()).is_err());
+    }
+
+    #[test]
+    fn test_parse_length() {
+        assert_eq!(parse_length("1pt").unwrap(), Abs::pt(1.));
+        assert_eq!(parse_length("1mm").unwrap(), Abs::mm(1.));
+        assert_eq!(parse_length("1cm").unwrap(), Abs::cm(1.));
+        assert_eq!(parse_length("1in").unwrap(), Abs::inches(1.));
+        assert!(parse_length("1").is_err());
+        assert!(parse_length("1px").is_err());
+    }
 }

@@ -148,9 +148,6 @@ pub trait ExportComputation<F: CompilerFeat, D> {
     type Output;
     type Config: Send + Sync + 'static;
 
-    fn needs_run(graph: &Arc<WorldComputeGraph<F>>, doc: Option<&D>, config: &Self::Config)
-        -> bool;
-
     fn run_with<C: WorldComputable<F, Output = Option<Arc<D>>>>(
         g: &Arc<WorldComputeGraph<F>>,
         config: &Self::Config,

@@ -9,7 +9,7 @@ use crate::project::{
 };
 use anyhow::bail;
 use reflexo::ImmutPath;
-use reflexo_typst::{TypstAbs as Abs, TypstDatetime};
+use reflexo_typst::TypstDatetime;
 use tinymist_project::{
     convert_source_date_epoch, EntryReader, ExportSvgTask, ExportTask as ProjectExportTask,
     LspCompiledArtifact, ProjectTask, QueryTask,
@@ -20,14 +20,13 @@ use tinymist_task::get_page_selection;
 use tokio::sync::mpsc;
 use typlite::Typlite;
 use typst::foundations::IntoValue;
-use typst::syntax::{ast, SyntaxNode};
 use typst::visualize::Color;
 use typst_pdf::{PdfOptions, Timestamp};
 
 use crate::tool::text::FullTextDigest;
 use crate::{actor::editor::EditorRequest, tool::word_count};
 
-use super::*;
+use super::{FutureFolder, SyncTaskFactory};
 
 #[derive(Clone)]
 pub struct ExportTask {
@@ -397,39 +396,6 @@ fn serialize(data: &impl serde::Serialize, format: &str, pretty: bool) -> anyhow
     })
 }
 
-fn parse_length(gap: &str) -> anyhow::Result<Abs> {
-    let length = typst::syntax::parse_code(gap);
-    if length.erroneous() {
-        bail!("invalid length: {gap}, errors: {:?}", length.errors());
-    }
-
-    let length: Option<ast::Numeric> = descendants(&length).into_iter().find_map(SyntaxNode::cast);
-
-    let Some(length) = length else {
-        bail!("not a length: {gap}");
-    };
-
-    let (value, unit) = length.get();
-    match unit {
-        ast::Unit::Pt => Ok(Abs::pt(value)),
-        ast::Unit::Mm => Ok(Abs::mm(value)),
-        ast::Unit::Cm => Ok(Abs::cm(value)),
-        ast::Unit::In => Ok(Abs::inches(value)),
-        _ => bail!("invalid unit: {unit:?} in {gap}"),
-    }
-}
-
-/// Low performance but simple recursive iterator.
-fn descendants(node: &SyntaxNode) -> impl IntoIterator<Item = &SyntaxNode> + '_ {
-    let mut res = vec![];
-    for child in node.children() {
-        res.push(child);
-        res.extend(descendants(child));
-    }
-
-    res
-}
-
 #[cfg(test)]
 mod tests {
     use clap::Parser;
@@ -466,16 +432,6 @@ mod tests {
             "#000000cc"
         );
         assert!(parse_color("invalid".to_owned()).is_err());
-    }
-
-    #[test]
-    fn test_parse_length() {
-        assert_eq!(parse_length("1pt").unwrap(), Abs::pt(1.));
-        assert_eq!(parse_length("1mm").unwrap(), Abs::mm(1.));
-        assert_eq!(parse_length("1cm").unwrap(), Abs::cm(1.));
-        assert_eq!(parse_length("1in").unwrap(), Abs::inches(1.));
-        assert!(parse_length("1").is_err());
-        assert!(parse_length("1px").is_err());
     }
 
     #[test]
