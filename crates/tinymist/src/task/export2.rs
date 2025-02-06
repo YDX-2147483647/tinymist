@@ -112,7 +112,7 @@ impl ProjectExport {
         }
 
         let doc = doc.as_ref();
-        let res = doc.map(|doc| T::run(graph, &doc, config).map(Bytes::from_string));
+        let res = doc.map(|doc| T::run(graph, doc, config).map(Bytes::from_string));
         res.transpose()
     }
 }
