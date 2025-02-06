@@ -12,10 +12,11 @@ use reflexo::ImmutPath;
 use reflexo_typst::{TypstAbs as Abs, TypstDatetime};
 use tinymist_project::{
     convert_source_date_epoch, EntryReader, ExportSvgTask, ExportTask as ProjectExportTask,
-    ExportTransform, LspCompiledArtifact, Pages, ProjectTask, QueryTask,
+    LspCompiledArtifact, ProjectTask, QueryTask,
 };
 use tinymist_std::error::prelude::*;
 use tinymist_std::typst::TypstDocument;
+use tinymist_task::get_page_selection;
 use tokio::sync::mpsc;
 use typlite::Typlite;
 use typst::foundations::IntoValue;
@@ -253,7 +254,7 @@ impl ExportTask {
                 ExportText(ExportTextTask { export: _ }) => {
                     format!("{}", FullTextDigest(doc.clone())).into_bytes()
                 }
-                ExportMarkdown(ExportMarkdownTask { export: _ }) => {
+                ExportMd(ExportMarkdownTask { export: _ }) => {
                     let conv = Typlite::new(Arc::new(snap.world))
                         .convert()
                         .map_err(|e| anyhow::anyhow!("failed to convert to markdown: {e}"))?;

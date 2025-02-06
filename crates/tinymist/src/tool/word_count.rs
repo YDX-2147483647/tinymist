@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::ops::Range;
 use std::sync::Arc;
 
-use reflexo_typst::{debug_loc::SourceSpanOffset, exporter_utils::map_err};
+use reflexo_typst::debug_loc::SourceSpanOffset;
 use serde::{Deserialize, Serialize};
 use tinymist_std::typst::TypstDocument;
 use typst::{syntax::Span, text::TextItem};
@@ -99,13 +99,15 @@ pub struct TextExporter {}
 impl TextExporter {
     /// Collect text content from a document.
     pub fn collect(&self, output: &TypstDocument) -> typst::diag::SourceResult<String> {
-        let w = std::io::BufWriter::new(Vec::new());
+        // let w = std::io::BufWriter::new(Vec::new());
 
-        let mut d = TextExportWorker { w };
-        d.doc(output).map_err(map_err)?;
+        // let mut d = TextExportWorker { w };
+        // d.doc(output).map_err(map_err)?;
 
-        d.w.flush().unwrap();
-        Ok(String::from_utf8(d.w.into_inner().unwrap()).unwrap())
+        // d.w.flush().unwrap();
+        // Ok(String::from_utf8(d.w.into_inner().unwrap()).unwrap())
+
+        todo!()
     }
 }
 

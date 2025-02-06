@@ -134,6 +134,8 @@ mod tests {
     }
 
     impl WorldComputable<SystemCompilerFeat> for FontsOnce {
+        type Output = Self;
+
         fn compute(graph: &Arc<WorldComputeGraph<SystemCompilerFeat>>) -> Result<Self> {
             // Ensure that this function is only called once.
             if FONT_COMPUTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
