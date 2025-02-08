@@ -4142,7 +4142,6 @@ dependencies = [
  "typlite",
  "typst",
  "typst-assets",
- "typst-eval",
  "typst-shim",
  "unscanny",
  "walkdir",
