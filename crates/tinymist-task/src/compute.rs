@@ -29,6 +29,10 @@ use crate::{ExportTransform, Pages, QueryTask};
 pub mod pdf;
 #[cfg(feature = "pdf")]
 pub use pdf::*;
+#[cfg(feature = "text")]
+pub mod text;
+#[cfg(feature = "text")]
+pub use text::*;
 
 pub struct SvgFlag;
 pub struct PngFlag;
