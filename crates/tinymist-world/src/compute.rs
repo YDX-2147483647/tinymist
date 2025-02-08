@@ -6,11 +6,12 @@ use std::sync::{Arc, OnceLock};
 use parking_lot::Mutex;
 use tinymist_std::error::prelude::*;
 use tinymist_std::typst::{TypstHtmlDocument, TypstPagedDocument};
-use typst::diag::{SourceResult, Warned};
+use typst::diag::{At, SourceResult, Warned};
 use typst::ecow::EcoVec;
+use typst::syntax::Span;
 
 use crate::snapshot::CompileSnapshot;
-use crate::CompilerFeat;
+use crate::{CompilerFeat, EntryReader};
 
 type AnyArc = Arc<dyn std::any::Any + Send + Sync>;
 
@@ -335,3 +336,36 @@ impl DiagnosticsTask {
 // E>>>()?;         (conf.f)(graph)
 //     }
 // }
+
+impl<F: CompilerFeat> WorldComputeGraph<F> {
+    pub fn ensure_main(&self) -> SourceResult<()> {
+        let main_id = self.snap.world.main_id();
+        let checked = main_id.ok_or_else(|| typst::diag::eco_format!("entry file is not set"));
+        checked.at(Span::detached()).map(|_| ())
+    }
+
+    /// Compile once from scratch.
+    pub fn pure_compile<D: ::typst::Document>(&self) -> Warned<SourceResult<Arc<D>>> {
+        let res = ::typst::compile::<D>(&self.snap.world);
+        // compile document
+        Warned {
+            output: res.output.map(Arc::new),
+            warnings: res.warnings,
+        }
+    }
+
+    /// Compile once from scratch.
+    pub fn compile(&self) -> Warned<SourceResult<Arc<TypstPagedDocument>>> {
+        self.pure_compile()
+    }
+
+    /// Compile to html once from scratch.
+    pub fn compile_html(&self) -> Warned<SourceResult<Arc<::typst::html::HtmlDocument>>> {
+        self.pure_compile()
+    }
+
+    // With **the compilation state**, query the matches for the selector.
+    // fn query(&mut self, selector: String, document: &TypstDocument) ->
+    // SourceResult<Vec<Content>> {     self.pure_query(world, selector,
+    // document) }
+}

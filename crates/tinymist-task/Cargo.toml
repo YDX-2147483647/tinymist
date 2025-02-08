@@ -43,8 +43,10 @@ notify.workspace = true
 
 [features]
 
-default = []
+default = ["pdf"]
 no-content-hint = []
+
+pdf = []
 
 [lints]
 workspace = true
