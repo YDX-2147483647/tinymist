@@ -4,9 +4,9 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use reflexo_typst::debug_loc::SourceSpanOffset;
-use reflexo_typst::TextExport;
 use serde::{Deserialize, Serialize};
 use tinymist_std::typst::TypstDocument;
+use tinymist_task::TextExport;
 use typst::{syntax::Span, text::TextItem};
 use unicode_script::{Script, UnicodeScript};
 
