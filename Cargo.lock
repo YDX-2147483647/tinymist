@@ -3943,6 +3943,7 @@ dependencies = [
  "tinymist-query",
  "tinymist-render",
  "tinymist-std",
+ "tinymist-task",
  "tokio",
  "tokio-util",
  "toml",
@@ -4009,15 +4010,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tinymist-derive"
-version = "0.12.19-rc4"
-source = "git+https://github.com/Myriad-Dreamin/tinymist.git?rev=8797b246d8ea63c5e265ae655aa4ad1ed24c3756#8797b246d8ea63c5e265ae655aa4ad1ed24c3756"
-dependencies = [
- "quote",
- "syn 2.0.98",
-]
-
-[[package]]
 name = "tinymist-project"
 version = "0.12.19-rc4"
 dependencies = [
@@ -4036,8 +4028,9 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "tinymist-derive 0.12.19-rc4",
+ "tinymist-derive",
  "tinymist-std",
+ "tinymist-task",
  "tinymist-world",
  "tokio",
  "toml",
@@ -4084,7 +4077,7 @@ dependencies = [
  "siphasher",
  "strum",
  "tinymist-analysis",
- "tinymist-derive 0.12.19-rc4",
+ "tinymist-derive",
  "tinymist-project",
  "tinymist-std",
  "tinymist-world",
@@ -4153,7 +4146,6 @@ dependencies = [
 [[package]]
 name = "tinymist-task"
 version = "0.12.19-rc4"
-source = "git+https://github.com/Myriad-Dreamin/tinymist.git?rev=8797b246d8ea63c5e265ae655aa4ad1ed24c3756#8797b246d8ea63c5e265ae655aa4ad1ed24c3756"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4171,7 +4163,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "tinymist-derive 0.12.19-rc4 (git+https://github.com/Myriad-Dreamin/tinymist.git?rev=8797b246d8ea63c5e265ae655aa4ad1ed24c3756)",
+ "tinymist-derive",
  "tinymist-std",
  "tinymist-world",
  "tokio",
@@ -4230,7 +4222,6 @@ dependencies = [
  "tar",
  "tinymist-std",
  "tinymist-vfs",
- "tinymist-world",
  "typst",
  "typst-assets",
  "wasm-bindgen",
