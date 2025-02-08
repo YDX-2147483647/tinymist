@@ -27,6 +27,7 @@ rpds.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 tinymist-world = { workspace = true }
 tinymist-std = { workspace = true }
 tinymist-derive.workspace = true
@@ -37,15 +38,15 @@ typst-pdf.workspace = true
 typst-html.workspace = true
 typst-svg.workspace = true
 typst-render.workspace = true
-typst-preview = { workspace = true, optional = true }
+typst-eval.workspace = true
 notify.workspace = true
 
 [features]
 
-default = []
+default = ["pdf"]
 no-content-hint = []
-# no-content-hint = ["reflexo-typst/no-content-hint"]
-preview = ["typst-preview"]
+
+pdf = []
 
 [lints]
 workspace = true

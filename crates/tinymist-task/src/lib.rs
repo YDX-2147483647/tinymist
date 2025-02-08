@@ -6,5 +6,5 @@ pub use model::*;
 mod primitives;
 pub use primitives::*;
 
-mod compute;
+pub mod compute;
 pub use compute::*;

@@ -3,24 +3,33 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use comemo::Track;
+use ecow::EcoString;
 use tinymist_std::error::prelude::*;
 use tinymist_std::typst::{TypstHtmlDocument, TypstPagedDocument};
-use typst::diag::SourceResult;
-use typst::foundations::{Bytes, Datetime};
+use tinymist_world::{
+    args::convert_source_date_epoch, CompileSnapshot, CompilerFeat, ExportComputation,
+    WorldComputeGraph,
+};
+use typst::diag::{SourceResult, StrResult};
+use typst::foundations::{Bytes, Content, Datetime, IntoValue, LocatableSelector, Scope, Value};
 use typst::layout::Abs;
-use typst::syntax::{ast, SyntaxNode};
+use typst::routines::EvalMode;
+use typst::syntax::{ast, Span, SyntaxNode};
 use typst::visualize::Color;
+use typst::World;
+use typst_eval::eval_string;
 use typst_pdf::{PdfOptions, Timestamp};
 
 use crate::model::{ExportHtmlTask, ExportPdfTask, ExportPngTask, ExportSvgTask};
 use crate::primitives::TaskWhen;
-use crate::{ExportTransform, Pages};
-use tinymist_world::{
-    args::convert_source_date_epoch, CompileSnapshot, CompilerFeat, ErasedStrExportTask,
-    ErasedVecExportTask, ExportComputation, OptionDocumentTask, WorldComputable, WorldComputeGraph,
-};
+use crate::{ExportTransform, Pages, QueryTask};
 
-pub struct PdfFlag;
+#[cfg(feature = "pdf")]
+pub mod pdf;
+#[cfg(feature = "pdf")]
+pub use pdf::*;
+
 pub struct SvgFlag;
 pub struct PngFlag;
 pub struct HtmlFlag;
@@ -28,7 +37,7 @@ pub struct HtmlFlag;
 pub struct ExportTimings;
 
 impl ExportTimings {
-    fn needs_run<F: CompilerFeat, D: typst::Document>(
+    pub fn needs_run<F: CompilerFeat, D: typst::Document>(
         snap: &CompileSnapshot<F>,
         timing: Option<TaskWhen>,
         docs: Option<&D>,
@@ -51,76 +60,22 @@ impl ExportTimings {
     }
 }
 
-pub type ErasedPdfExport = ErasedVecExportTask<PdfFlag>;
-pub type ErasedSvgExport = ErasedStrExportTask<SvgFlag>;
-pub type ErasedPngExport = ErasedVecExportTask<PngFlag>;
-pub type ErasedHtmlExport = ErasedStrExportTask<HtmlFlag>;
-
-pub struct PdfExport(pub Option<SourceResult<Bytes>>);
-
-impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for PdfExport {
-    type Output = SourceResult<Bytes>;
-    type Config = ExportPdfTask;
-
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&TypstPagedDocument>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or_default()
-    }
-
-    fn run(doc: &Arc<TypstPagedDocument>, config: &ExportPdfTask) -> Result<SourceResult<Bytes>> {
-        // todo: timestamp world.now()
-        let creation_timestamp = config
-            .creation_timestamp
-            .map(convert_source_date_epoch)
-            .transpose()
-            .context_ut("parse pdf creation timestamp")?
-            .unwrap_or_else(chrono::Utc::now);
-
-        // todo: Some(pdf_uri.as_str())
-
-        let bytes = typst_pdf::pdf(
-            doc,
-            &PdfOptions {
-                timestamp: convert_datetime(creation_timestamp),
-                ..Default::default()
-            },
-        );
-
-        Ok(bytes.map(Bytes::new))
-    }
-}
-
-impl<F: CompilerFeat> WorldComputable<F> for PdfExport {
-    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
-        Ok(Self(OptionDocumentTask::run_export::<F, Self>(graph)?))
-    }
-}
-
-pub struct SvgExport(pub Option<SourceResult<String>>);
+pub struct SvgExport;
 
 impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for SvgExport {
-    type Output = SourceResult<String>;
+    type Output = String;
     type Config = ExportSvgTask;
 
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&TypstPagedDocument>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or_default()
-    }
-
-    fn run(doc: &Arc<TypstPagedDocument>, config: &ExportSvgTask) -> Result<SourceResult<String>> {
+    fn run(
+        _graph: &Arc<WorldComputeGraph<F>>,
+        doc: &Arc<TypstPagedDocument>,
+        config: &ExportSvgTask,
+    ) -> Result<String> {
         let (is_first, merged_gap) = get_page_selection(&config.export)?;
 
         let first_page = doc.pages.first();
 
-        Ok(Ok(if is_first {
+        Ok(if is_first {
             if let Some(first_page) = first_page {
                 typst_svg::svg(first_page)
             } else {
@@ -128,32 +83,29 @@ impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for SvgExport {
             }
         } else {
             typst_svg::svg_merged(doc, merged_gap)
-        }))
+        })
     }
 }
 
-impl<F: CompilerFeat> WorldComputable<F> for SvgExport {
-    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
-        Ok(Self(OptionDocumentTask::run_export::<F, Self>(graph)?))
-    }
-}
+// impl<F: CompilerFeat> WorldComputable<F> for SvgExport {
+//     type Output = Option<String>;
 
-pub struct PngExport(pub Option<SourceResult<Bytes>>);
+//     fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self::Output> {
+//         OptionDocumentTask::run_export::<F, Self>(graph)
+//     }
+// }
+
+pub struct PngExport;
 
 impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for PngExport {
-    type Output = SourceResult<Bytes>;
+    type Output = Bytes;
     type Config = ExportPngTask;
 
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&TypstPagedDocument>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or_default()
-    }
-
-    fn run(doc: &Arc<TypstPagedDocument>, config: &ExportPngTask) -> Result<SourceResult<Bytes>> {
+    fn run(
+        _graph: &Arc<WorldComputeGraph<F>>,
+        doc: &Arc<TypstPagedDocument>,
+        config: &ExportPngTask,
+    ) -> Result<Bytes> {
         let ppi = config.ppi.to_f32();
         if ppi <= 1e-6 {
             tinymist_std::bail!("invalid ppi: {ppi}");
@@ -182,40 +134,168 @@ impl<F: CompilerFeat> ExportComputation<F, TypstPagedDocument> for PngExport {
             .encode_png()
             .map(Bytes::new)
             .context_ut("failed to encode PNG")
-            .map(Ok)
     }
 }
 
-impl<F: CompilerFeat> WorldComputable<F> for PngExport {
-    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
-        Ok(Self(OptionDocumentTask::run_export::<F, Self>(graph)?))
-    }
-}
+// impl<F: CompilerFeat> WorldComputable<F> for PngExport {
+//     type Output = Option<Bytes>;
 
-pub struct HtmlExport(pub Option<SourceResult<String>>);
+//     fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self::Output> {
+//         OptionDocumentTask::run_export::<F, Self>(graph)
+//     }
+// }
+
+pub struct HtmlExport;
 
 impl<F: CompilerFeat> ExportComputation<F, TypstHtmlDocument> for HtmlExport {
-    type Output = SourceResult<String>;
+    type Output = String;
     type Config = ExportHtmlTask;
 
-    fn needs_run(
-        graph: &Arc<WorldComputeGraph<F>>,
-        doc: Option<&TypstHtmlDocument>,
-        config: &Self::Config,
-    ) -> bool {
-        let timing = config.export.when;
-        ExportTimings::needs_run(&graph.snap, Some(timing), doc).unwrap_or_default()
-    }
-
-    fn run(doc: &Arc<TypstHtmlDocument>, _config: &ExportHtmlTask) -> Result<SourceResult<String>> {
-        Ok(typst_html::html(doc))
+    fn run(
+        _graph: &Arc<WorldComputeGraph<F>>,
+        doc: &Arc<TypstHtmlDocument>,
+        _config: &ExportHtmlTask,
+    ) -> Result<String> {
+        Ok(typst_html::html(doc)?)
     }
 }
 
-impl<F: CompilerFeat> WorldComputable<F> for HtmlExport {
-    fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self> {
-        Ok(Self(OptionDocumentTask::run_export::<F, Self>(graph)?))
+// impl<F: CompilerFeat> WorldComputable<F> for HtmlExport {
+//     type Output = Option<String>;
+
+//     fn compute(graph: &Arc<WorldComputeGraph<F>>) -> Result<Self::Output> {
+//         OptionDocumentTask::run_export::<F, Self>(graph)
+//     }
+// }
+
+pub struct DocumentQuery;
+
+impl DocumentQuery {
+    // todo: query exporter
+    /// Retrieve the matches for the selector.
+    pub fn retrieve<D: typst::Document>(
+        world: &dyn World,
+        selector: &str,
+        document: &D,
+    ) -> StrResult<Vec<Content>> {
+        let selector = eval_string(
+            &typst::ROUTINES,
+            world.track(),
+            selector,
+            Span::detached(),
+            EvalMode::Code,
+            Scope::default(),
+        )
+        .map_err(|errors| {
+            let mut message = EcoString::from("failed to evaluate selector");
+            for (i, error) in errors.into_iter().enumerate() {
+                message.push_str(if i == 0 { ": " } else { ", " });
+                message.push_str(&error.message);
+            }
+            message
+        })?
+        .cast::<LocatableSelector>()
+        .map_err(|e| EcoString::from(format!("failed to cast: {}", e.message())))?;
+
+        Ok(document
+            .introspector()
+            .query(&selector.0)
+            .into_iter()
+            .collect::<Vec<_>>())
     }
+
+    fn run_inner<F: CompilerFeat, D: typst::Document>(
+        g: &Arc<WorldComputeGraph<F>>,
+        doc: &Arc<D>,
+        config: &QueryTask,
+    ) -> Result<Vec<Value>> {
+        let selector = &config.selector;
+        let elements = Self::retrieve(&g.snap.world, selector, doc.as_ref())
+            .map_err(|e| anyhow::anyhow!("failed to retrieve: {e}"))?;
+        if config.one && elements.len() != 1 {
+            bail!("expected exactly one element, found {}", elements.len());
+        }
+
+        Ok(elements
+            .into_iter()
+            .filter_map(|c| match &config.field {
+                Some(field) => c.get_by_name(field).ok(),
+                _ => Some(c.into_value()),
+            })
+            .collect())
+    }
+
+    pub fn get_as_value<F: CompilerFeat, D: typst::Document>(
+        g: &Arc<WorldComputeGraph<F>>,
+        doc: &Arc<D>,
+        config: &QueryTask,
+    ) -> Result<serde_json::Value> {
+        let mapped = Self::run_inner(g, doc, config)?;
+
+        let res = if config.one {
+            let Some(value) = mapped.first() else {
+                bail!("no such field found for element");
+            };
+            serde_json::to_value(value)
+        } else {
+            serde_json::to_value(&mapped)
+        };
+
+        res.context("failed to serialize")
+    }
+}
+
+impl<F: CompilerFeat, D: typst::Document> ExportComputation<F, D> for DocumentQuery {
+    type Output = SourceResult<String>;
+    type Config = QueryTask;
+
+    fn run(
+        g: &Arc<WorldComputeGraph<F>>,
+        doc: &Arc<D>,
+        config: &QueryTask,
+    ) -> Result<SourceResult<String>> {
+        let pretty = false;
+        let mapped = Self::run_inner(g, doc, config)?;
+
+        let res = if config.one {
+            let Some(value) = mapped.first() else {
+                bail!("no such field found for element");
+            };
+            serialize(value, &config.format, pretty)
+        } else {
+            serialize(&mapped, &config.format, pretty)
+        };
+
+        res.map(Ok)
+    }
+}
+
+/// Serialize data to the output format.
+fn serialize(data: &impl serde::Serialize, format: &str, pretty: bool) -> Result<String> {
+    Ok(match format {
+        "json" if pretty => serde_json::to_string_pretty(data).context("serialize query")?,
+        "json" => serde_json::to_string(data).context("serialize query")?,
+        "yaml" => serde_yaml::to_string(&data).context_ut("serialize query")?,
+        "txt" => {
+            use serde_json::Value::*;
+            let value = serde_json::to_value(data).context("serialize query")?;
+            match value {
+                String(s) => s,
+                _ => {
+                    let kind = match value {
+                        Null => "null",
+                        Bool(_) => "boolean",
+                        Number(_) => "number",
+                        String(_) => "string",
+                        Array(_) => "array",
+                        Object(_) => "object",
+                    };
+                    bail!("expected a string value for format: {format}, got {kind}")
+                }
+            }
+        }
+        _ => bail!("unsupported format for query: {format}"),
+    })
 }
 
 /// Gets legacy page selection
@@ -302,4 +382,42 @@ fn convert_datetime(date_time: chrono::DateTime<chrono::Utc>) -> Option<Timestam
     );
 
     Some(Timestamp::new_utc(datetime.unwrap()))
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_parse_color() {
+        assert_eq!(parse_color("black".to_owned()).unwrap(), Color::BLACK);
+        assert_eq!(parse_color("white".to_owned()).unwrap(), Color::WHITE);
+        assert_eq!(parse_color("red".to_owned()).unwrap(), Color::RED);
+        assert_eq!(parse_color("green".to_owned()).unwrap(), Color::GREEN);
+        assert_eq!(parse_color("blue".to_owned()).unwrap(), Color::BLUE);
+        assert_eq!(
+            parse_color("#000000".to_owned()).unwrap().to_hex(),
+            "#000000"
+        );
+        assert_eq!(
+            parse_color("#ffffff".to_owned()).unwrap().to_hex(),
+            "#ffffff"
+        );
+        assert_eq!(
+            parse_color("#000000cc".to_owned()).unwrap().to_hex(),
+            "#000000cc"
+        );
+        assert!(parse_color("invalid".to_owned()).is_err());
+    }
+
+    #[test]
+    fn test_parse_length() {
+        assert_eq!(parse_length("1pt").unwrap(), Abs::pt(1.));
+        assert_eq!(parse_length("1mm").unwrap(), Abs::mm(1.));
+        assert_eq!(parse_length("1cm").unwrap(), Abs::cm(1.));
+        assert_eq!(parse_length("1in").unwrap(), Abs::inches(1.));
+        assert!(parse_length("1").is_err());
+        assert!(parse_length("1px").is_err());
+    }
 }
