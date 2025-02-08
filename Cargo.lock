@@ -2846,7 +2846,6 @@ dependencies = [
 [[package]]
 name = "reflexo"
 version = "0.5.4"
-source = "git+https://github.com/Myriad-Dreamin/typst.ts/?branch=nightly-v0.5.5#7f5580050d048236fce6134bb1e30ea6311b9553"
 dependencies = [
  "base64",
  "bitvec",
@@ -2872,7 +2871,6 @@ dependencies = [
 [[package]]
 name = "reflexo-typst"
 version = "0.5.4"
-source = "git+https://github.com/Myriad-Dreamin/typst.ts/?branch=nightly-v0.5.5#7f5580050d048236fce6134bb1e30ea6311b9553"
 dependencies = [
  "codespan-reporting",
  "comemo",
@@ -2892,6 +2890,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tar",
+ "tinymist-task",
  "tinymist-world",
  "tokio",
  "typst",
@@ -2902,7 +2901,6 @@ dependencies = [
 [[package]]
 name = "reflexo-typst2vec"
 version = "0.5.4"
-source = "git+https://github.com/Myriad-Dreamin/typst.ts/?branch=nightly-v0.5.5#7f5580050d048236fce6134bb1e30ea6311b9553"
 dependencies = [
  "bitvec",
  "comemo",
@@ -2927,7 +2925,6 @@ dependencies = [
 [[package]]
 name = "reflexo-vec2svg"
 version = "0.5.4"
-source = "git+https://github.com/Myriad-Dreamin/typst.ts/?branch=nightly-v0.5.5#7f5580050d048236fce6134bb1e30ea6311b9553"
 dependencies = [
  "base64",
  "comemo",
@@ -3950,6 +3947,7 @@ dependencies = [
  "typlite",
  "typst",
  "typst-ansi-hl",
+ "typst-html",
  "typst-pdf",
  "typst-preview",
  "typst-render",
@@ -4008,6 +4006,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinymist-derive"
+version = "0.12.19-rc4"
+source = "git+https://github.com/Myriad-Dreamin/tinymist.git?rev=8797b246d8ea63c5e265ae655aa4ad1ed24c3756#8797b246d8ea63c5e265ae655aa4ad1ed24c3756"
+dependencies = [
+ "quote",
+ "syn 2.0.98",
+]
+
+[[package]]
 name = "tinymist-project"
 version = "0.12.19-rc4"
 dependencies = [
@@ -4022,12 +4029,11 @@ dependencies = [
  "parking_lot",
  "pathdiff",
  "rayon",
- "reflexo-typst",
  "rpds",
  "semver",
  "serde",
  "serde_json",
- "tinymist-derive",
+ "tinymist-derive 0.12.19-rc4",
  "tinymist-std",
  "tinymist-world",
  "tokio",
@@ -4075,7 +4081,7 @@ dependencies = [
  "siphasher",
  "strum",
  "tinymist-analysis",
- "tinymist-derive",
+ "tinymist-derive 0.12.19-rc4",
  "tinymist-project",
  "tinymist-std",
  "tinymist-world",
@@ -4141,6 +4147,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinymist-task"
+version = "0.12.19-rc4"
+source = "git+https://github.com/Myriad-Dreamin/tinymist.git?rev=8797b246d8ea63c5e265ae655aa4ad1ed24c3756#8797b246d8ea63c5e265ae655aa4ad1ed24c3756"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "comemo",
+ "dirs",
+ "ecow",
+ "log",
+ "notify",
+ "parking_lot",
+ "pathdiff",
+ "rayon",
+ "rpds",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tinymist-derive 0.12.19-rc4 (git+https://github.com/Myriad-Dreamin/tinymist.git?rev=8797b246d8ea63c5e265ae655aa4ad1ed24c3756)",
+ "tinymist-std",
+ "tinymist-world",
+ "tokio",
+ "toml",
+ "typst",
+ "typst-assets",
+ "typst-eval",
+ "typst-html",
+ "typst-pdf",
+ "typst-render",
+ "typst-svg",
+]
+
+[[package]]
 name = "tinymist-vfs"
 version = "0.12.19-rc4"
 dependencies = [
@@ -4175,6 +4216,7 @@ dependencies = [
  "log",
  "parking_lot",
  "reqwest",
+ "rpds",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

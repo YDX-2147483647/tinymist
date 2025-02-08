@@ -455,7 +455,12 @@ fn descendants(node: &SyntaxNode) -> impl IntoIterator<Item = &SyntaxNode> + '_ 
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
+
     use super::*;
+    use crate::export::ProjectCompilation;
+    use crate::project::{CompileOnceArgs, ExportSignal};
+    use crate::world::base::{CompileSnapshot, WorldComputeGraph};
 
     #[test]
     fn test_default_never() {
@@ -494,5 +499,46 @@ mod tests {
         assert_eq!(parse_length("1in").unwrap(), Abs::inches(1.));
         assert!(parse_length("1").is_err());
         assert!(parse_length("1px").is_err());
+    }
+
+    #[test]
+    fn compilation_default_never() {
+        let args = CompileOnceArgs::parse_from(["tinymist", "main.typ"]);
+        let verse = args
+            .resolve_system()
+            .expect("failed to resolve system universe");
+
+        let snap = CompileSnapshot::from_world(verse.snapshot());
+
+        let graph = WorldComputeGraph::new(snap);
+
+        let needs_run =
+            ProjectCompilation::preconfig_timings(&graph).expect("failed to preconfigure timings");
+
+        assert!(!needs_run);
+    }
+
+    // todo: on demand compilation
+    #[test]
+    fn compilation_run_paged_diagnostics() {
+        let args = CompileOnceArgs::parse_from(["tinymist", "main.typ"]);
+        let verse = args
+            .resolve_system()
+            .expect("failed to resolve system universe");
+
+        let mut snap = CompileSnapshot::from_world(verse.snapshot());
+
+        snap.signal = ExportSignal {
+            by_entry_update: true,
+            by_fs_events: false,
+            by_mem_events: false,
+        };
+
+        let graph = WorldComputeGraph::new(snap);
+
+        let needs_run =
+            ProjectCompilation::preconfig_timings(&graph).expect("failed to preconfigure timings");
+
+        assert!(needs_run);
     }
 }
