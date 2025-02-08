@@ -4,6 +4,7 @@ use core::fmt;
 
 use ecow::{EcoString, EcoVec};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "typst")]
 use typst::diag::SourceDiagnostic;
 
 use crate::debug_loc::LspRange;
@@ -61,6 +62,7 @@ pub enum ErrKind {
     /// A string message.
     Msg(EcoString),
     /// A source diagnostic message.
+    #[cfg(feature = "typst")]
     RawDiag(EcoVec<SourceDiagnostic>),
     /// A source diagnostic message.
     Diag(Box<DiagMessage>),
@@ -226,6 +228,7 @@ impl From<anyhow::Error> for Error {
     }
 }
 
+#[cfg(feature = "typst")]
 impl From<EcoVec<SourceDiagnostic>> for Error {
     fn from(e: EcoVec<SourceDiagnostic>) -> Self {
         Error::new("", ErrKind::RawDiag(e), None)
